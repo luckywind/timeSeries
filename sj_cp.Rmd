@@ -1,0 +1,167 @@
+---
+title: "贵州省六盘水市卷烟销售预浿"
+author: "程幸禿"
+date: "2016广6朿5旿"
+output: word_document
+---
+#1 销售数据整琿
+```{r}
+sj = read.csv("shengjian.csv")
+lps = sj[sj$市公叿=="六盘水市",]
+rownames(lps) <- 1:nrow(lps)
+#重排
+init.index=c(1,3,2,4)
+index=NULL
+for(i in 1:(dim(lps)[1]/4)){
+index=c(index,init.index)
+init.index=init.index+4
+}
+lps = lps[index,]
+#画图
+lps_sale_ts =ts(lps$销釿.箿.,start=c(2006,1),frequency=4)
+plot(lps_sale_ts,ylab="销釿(箿)",main="卷烟销售量")
+```
+#分解
+```{r}
+#multiplicative代表乘法模型，additive是可加模垿
+#函数首先用移动平均法决定趋势成分，并从原始序列减去趋势
+#季节性的计算是通过对每个季节取相应平均值得刿
+#去掉趋势和季节项得到残差
+decompearn =decompose(lps_sale_ts, type ="multiplicative")
+
+plot(decompearn)
+```
+
+#2 分析
+```{r}
+library(TSA)
+acf(lps_sale_ts,main="周期怿")
+pacf(lps_sale_ts)
+```
+
+#3 去趋势
+```{r}
+plot(diff(lps_sale_ts),xlab="销售量(箿)",main="销量一阶差刿")
+acf(diff(lps_sale_ts))
+pacf(diff(lps_sale_ts))
+```
+
+#4 季节差分
+```{r}
+plot(diff(lps_sale_ts,lag = 4))
+acf(diff(lps_sale_ts,lag = 4))
+pacf(diff(lps_sale_ts,lag = 4))
+```
+
+#5 去趋势后进行季节差分
+```{r}
+plot(diff(diff(lps_sale_ts,lag = 4)))
+acf(diff(diff(lps_sale_ts,lag = 4)))
+pacf(diff(diff(lps_sale_ts,lag = 4)))
+```
+
+#3 建模
+```{r}
+lps_m1 = arima(lps_sale_ts,order = c(1,0,1),seasonal = list(order = c(1,1,1),period=4))
+lps_m1
+#sigma^2 estimated as 3645936:  log likelihood = -325.61,  aic = 661.22
+lps_m2 = arima(lps_sale_ts,order = c(0,0,0),seasonal = list(order = c(0,1,0),period=4))
+lps_m2
+#sigma^2 estimated as 5437696:  log likelihood = -330.24,  aic = 660.48
+#sigma^2 estimated as 5437696:  log likelihood = -330.24,  aic = 662.48
+lps_m3 = arima(lps_sale_ts,order = c(0,1,0),seasonal = list(order = c(0,1,0),period=4))
+lps_m3
+#sigma^2 estimated as 8224071:  log likelihood = -328.31,  aic = 656.62
+lps_m4 = arima(lps_sale_ts,order = c(1,1,1),seasonal = list(order = c(0,1,0),period=4))
+lps_m4
+#sigma^2 estimated as 3824161:  log likelihood = -317.05,  aic = 638.1
+lps_m5 = arima(lps_sale_ts,order = c(1,1,1),seasonal = list(order = c(1,1,1),period=4))
+lps_m5
+#sigma^2 estimated as 2868921:  log likelihood = -315.07,  aic = 638.13
+lps_m6 = arima(lps_sale_ts,order = c(0,1,1),seasonal = list(order = c(0,1,0),period=4))
+lps_m6
+#sigma^2 estimated as 4169685:  log likelihood = -318.21,  aic = 640.43
+lps_m7 = arima(lps_sale_ts,order = c(1,1,0),seasonal = list(order = c(0,1,0),period=4))
+lps_m7
+#sigma^2 estimated as 6874548:  log likelihood = -325.32,  aic = 654.64
+lps_m8 = arima(lps_sale_ts,order = c(1,1,0),seasonal = list(order = c(0,1,1),period=4))
+lps_m8
+#sigma^2 estimated as 6247698:  log likelihood = -324.08,  aic = 654.17
+lps_m9 = arima(lps_sale_ts,order = c(1,1,0),seasonal = list(order = c(1,1,1),period=4))
+lps_m9
+#sigma^2 estimated as 5676561:  log likelihood = -324.11,  aic = 656.22
+#加入一个可加异常倿
+lps_m10 = arima(lps_sale_ts,order = c(1,1,1),seasonal = list(order = c(0,1,0),period=4),xreg = data.frame(t40=1*(seq(lps_sale_ts)==40)))
+lps_m10
+#sigma^2 estimated as 2378095:  log likelihood = -307.62,  aic = 621.24
+#使用非季节模垿
+# lps_m2 = arima(lps_sale_ts,order = c(4,0,12))
+# lps_m2
+```
+
+#4 模型评估
+```{r}
+ModelCheck = function(tsmodel){
+  tsdiag(tsmodel, gof.lag=36)
+qqnorm(rstandard(tsmodel),main=expression(Normal~~Q-Q~~Plot))
+qqline(rstandard(tsmodel))
+}
+ModelCheck(lps_m1)
+#ModelCheck(lps_m2)
+ModelCheck(lps_m3)
+ModelCheck(lps_m4)
+ModelCheck(lps_m5)
+ModelCheck(lps_m10)
+```
+
+
+#5 拟合
+```{r}
+fitting=function(tsmodel){
+plot(lps_sale_ts)
+lines(fitted(tsmodel),col='red')
+points(lps_sale_ts,cex=0.5)
+}
+fitting(lps_m1)
+fitting(lps_m2)
+fitting(lps_m3)
+fitting(lps_m4)
+fitting(lps_m5)
+fitting(lps_m10)
+
+```
+
+#6 预测
+```{r}
+forcast = function(tsmodel,n){
+ modelpredict = plot(tsmodel,n.ahead=n,col='red',xlab='Year',type='o',
+ylab="销售量",
+main="销量预浿")
+ str(modelpredict)
+}
+forcast(lps_m1,4)
+forcast(lps_m2,4)
+forcast(lps_m3,4)
+forcast(lps_m4,4)
+forcast(lps_m5,4)
+```
+
+```{r}
+#加入异常值的预测
+npred=4
+newxreg <-ts(rep(0,4),frequency = 4, start = c(2016, 1))
+# obtain the forecasts
+p <-predict(lps_m10, n.ahead=npred, newxreg=newxreg)
+# display forecasts
+plot(cbind(lps_sale_ts, p$pred), plot.type = "single", ylab = "", type = "n")
+lines(lps_sale_ts)
+lines(p$pred, type = "l", col = "blue")
+lines(p$pred + 1.96 * p$se, type = "l", col = "red", lty = 2)
+lines(p$pred -1.96 * p$se, type = "l", col = "red", lty = 2)
+legend("topleft", legend = c("observed data",
+"forecasts", "95% confidence bands"), lty = c(1,1,2,2),
+col = c("black", "blue", "red", "red"), bty = "n")
+```
+
+
+
